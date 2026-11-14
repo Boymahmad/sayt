@@ -32,14 +32,26 @@ def brace(eqs):
     if len(eqs) == 2: return f"⎧ {eqs.__getitem__(0)}\n⎩ {eqs.__getitem__(1)}"
     return f"⎧ {eqs.__getitem__(0)}\n⎨ {eqs.__getitem__(1)}\n⎩ {eqs.__getitem__(2)}"
 
-def plot_3d_roots(pts_list):
+def plot_2d(f1, f2, x, y, pt=None):
+    spn = max(5.0, abs(pt.__getitem__(0)) + 2.5, abs(pt.__getitem__(1)) + 2.5) if pt else 5.0
+    xv = np.linspace(-spn, spn, 300)
+    X, Y = np.meshgrid(xv, xv)
+    fig, ax = plt.subplots(figsize=(5, 5))
+    ax.contour(X, Y, sp.lambdify((x, y), f1, 'numpy')(X, Y), levels=(0,), colors='blue')
+    ax.contour(X, Y, sp.lambdify((x, y), f2, 'numpy')(X, Y), levels=(0,), colors='red')
+    if pt:
+        ax.scatter((pt.__getitem__(0),), (pt.__getitem__(1),), color='green', s=80, zorder=5, label=f"Корень ({pt.__getitem__(0):.2f}, {pt.__getitem__(1):.2f})")
+        ax.legend()
+    ax.axhline(0, color='black', lw=0.8); ax.axvline(0, color='black', lw=0.8); ax.grid(True, ls='--', alpha=0.6)
+    st.pyplot(fig)
+
+def plot_3d(pts):
     fig = plt.figure(figsize=(6, 5))
     ax = fig.add_subplot(111, projection='3d')
-    for pt in pts_list:
-        ax.scatter(pt.__getitem__(0), pt.__getitem__(1), pt.__getitem__(2), color='green', s=70)
-        ax.text(pt.__getitem__(0), pt.__getitem__(1), pt.__getitem__(2), f" ({pt.__getitem__(0):.2f}, {pt.__getitem__(1):.2f}, {pt.__getitem__(2):.2f})", fontsize=8)
-    ax.set_xlabel("Ось X"); ax.set_ylabel("Ось Y"); ax.set_zlabel("Ось Z")
-    ax.set_title("3D-визуализация действительных корней")
+    for p in pts:
+        ax.scatter(p.__getitem__(0), p.__getitem__(1), p.__getitem__(2), color='green', s=70)
+        ax.text(p.__getitem__(0), p.__getitem__(1), p.__getitem__(2), f" ({p.__getitem__(0):.2f}, {p.__getitem__(1):.2f}, {p.__getitem__(2):.2f})", fontsize=8)
+    ax.set_xlabel("X"); ax.set_ylabel("Y"); ax.set_zlabel("Z")
     st.pyplot(fig)
 
 if mode == "1. Решение системы":
@@ -62,7 +74,7 @@ if mode == "1. Решение системы":
             fs = list(p_eq(e) for e in eqs)
             st.latex(r"\begin{cases} " + r" \\ ".join(list(sp.latex(f) + " = 0" for f in fs)) + r" \end{cases}")
             rep = "ОТЧЕТ О РЕШЕНИИ СИСТЕМЫ\n" + "="*45 + "\n" + brace(eqs) + "\n\n"
-            real_pts_3d = list()
+            r_pts = list()
 
             if mth == "Аналитический":
                 try: sols = sp.solve(fs, vs, dict=True)
@@ -82,8 +94,7 @@ if mode == "1. Решение системы":
                             tg = "Действительный корень" if ir else "Комплексный корень"
                             pts = list()
                             rep += f"{tg} {idx}:\n"
-                            if ir and n == 3:
-                                real_pts_3d.append(tuple(float(complex(s.get(v).evalf()).real) for v in vs))
+                            if ir: r_pts.append(tuple(float(complex(s.get(v).evalf()).real) for v in vs))
                             for v in vs:
                                 ex = s.get(v)
                                 if ex.is_Integer: pts.append(rf"{sp.latex(v)} = {sp.latex(ex)}")
@@ -112,19 +123,10 @@ if mode == "1. Решение системы":
                 st.dataframe(df, use_container_width=True)
                 st.latex(", ".join(list(rf"{v} \approx {float(xc.item(i)):.6f}" for i, v in enumerate(vs))))
                 rep += df.to_string(index=False) + "\n"
-                if n == 3: real_pts_3d.append(tuple(float(xc.item(i)) for i in range(3)))
+                r_pts.append(tuple(float(xc.item(i)) for i in range(n)))
 
-            if n == 2:
-                x, y = vs
-                xv = np.linspace(-5, 5, 300)
-                X, Y = np.meshgrid(xv, xv)
-                fig, ax = plt.subplots(figsize=(5, 5))
-                ax.contour(X, Y, sp.lambdify((x, y), fs.__getitem__(0), 'numpy')(X, Y), levels=(0,), colors='blue')
-                ax.contour(X, Y, sp.lambdify((x, y), fs.__getitem__(1), 'numpy')(X, Y), levels=(0,), colors='red')
-                ax.axhline(0, color='black', lw=0.8); ax.axvline(0, color='black', lw=0.8); ax.grid(True, ls='--', alpha=0.6)
-                st.pyplot(fig)
-            elif real_pts_3d:
-                plot_3d_roots(real_pts_3d)
+            if n == 2: plot_2d(fs.__getitem__(0), fs.__getitem__(1), vs.__getitem__(0), vs.__getitem__(1), r_pts.__getitem__(0) if r_pts else None)
+            elif r_pts: plot_3d(r_pts)
             st.download_button("📥 Скачать отчет (.txt)", data=rep, file_name="otchet.txt")
         except Exception as e: st.error(f"Ошибка: {e}")
 
@@ -143,14 +145,16 @@ else:
             else:
                 x, y, z = vs
                 tm = (x**2+y+z, x+y**2-z, x*y+z**2) if mt=="Квадратичная" else ((x**3+y-z, x-y**3+z, x+y+z**3) if mt=="Кубическая" else (sp.sin(x)+y+z, x+sp.cos(y)-z, x*y+z**2))
-            ltx, pln = list(), list()
+            ltx, pln, f_zeros = list(), list(), list()
             for f in tm:
                 c = sp.simplify(f.subs(sd))
                 ltx.append(f"{sp.latex(f)} = {sp.latex(c)}"); pln.append(f"{f} = {c}")
+                f_zeros.append(f - c)
             st.latex(r"\begin{cases} " + r" \\ ".join(ltx) + r" \end{cases}")
             st.code("\n".join(pln), language="text")
-            if n == 3:
-                plot_3d_roots((tuple(float(sd.get(v).evalf()) for v in vs),))
+            pt_val = tuple(float(sd.get(v).evalf()) for v in vs)
+            if n == 2: plot_2d(f_zeros.__getitem__(0), f_zeros.__getitem__(1), x, y, pt_val)
+            else: plot_3d((pt_val,))
             rep_s = "СИНТЕЗ СИСТЕМЫ\n" + "="*30 + "\n" + brace(pln) + "\n"
             st.download_button("📥 Скачать систему (.txt)", data=rep_s, file_name="sintez.txt")
         except Exception as e: st.error(f"Ошибка: {e}")
