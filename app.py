@@ -77,6 +77,20 @@ if mode == "1. Решение системы":
             r_pts = list()
 
             if mth == "Аналитический":
+                if n == 2:
+                    x, y = vs
+                    try:
+                        sub_x = sp.solve(fs.__getitem__(0), x)
+                        if sub_x:
+                            sx = sub_x.__getitem__(0)
+                            eq_sub = sp.expand(fs.__getitem__(1).subs(x, sx))
+                            st.markdown("**Шаг 1.** Выразим $x$ из первого уравнения:")
+                            st.latex(rf"x = {sp.latex(sx)}")
+                            st.markdown("**Шаг 2.** Подставим во второе уравнение:")
+                            st.latex(rf"{sp.latex(eq_sub)} = 0")
+                            rep += f"Шаг 1 (выражение x): x = {sx}\nШаг 2 (подстановка): {eq_sub} = 0\n\n"
+                    except Exception: pass
+
                 try: sols = sp.solve(fs, vs, dict=True)
                 except NotImplementedError:
                     sols = None
@@ -158,4 +172,4 @@ else:
             rep_s = "СИНТЕЗ СИСТЕМЫ\n" + "="*30 + "\n" + brace(pln) + "\n"
             st.download_button("📥 Скачать систему (.txt)", data=rep_s, file_name="sintez.txt")
         except Exception as e: st.error(f"Ошибка: {e}")
-    
+        
