@@ -77,24 +77,29 @@ if mode == "1. Решение системы":
             r_pts = list()
 
             if mth == "Аналитический":
-                if n == 2:
+                try: sols = sp.solve(fs, vs, dict=True)
+                except NotImplementedError:
+                    sols = None
+                    st.warning("⚠️ Выберите «Метод Ньютона» для трансцендентных систем.")
+
+                if n == 2 and sols is not None:
                     x, y = vs
                     try:
                         sub_x = sp.solve(fs.__getitem__(0), x)
                         if sub_x:
                             sx = sub_x.__getitem__(0)
                             eq_sub = sp.expand(fs.__getitem__(1).subs(x, sx))
-                            st.markdown("**Шаг 1.** Выразим $x$ из первого уравнения:")
+                            y_vals = sp.solve(eq_sub, y)
+                            st.markdown("**Шаг 1.** Выразим переменную $x$ из первого уравнения:")
                             st.latex(rf"x = {sp.latex(sx)}")
-                            st.markdown("**Шаг 2.** Подставим во второе уравнение:")
-                            st.latex(rf"{sp.latex(eq_sub)} = 0")
-                            rep += f"Шаг 1 (выражение x): x = {sx}\nШаг 2 (подстановка): {eq_sub} = 0\n\n"
+                            st.markdown("**Шаг 2.** Подставим во второе уравнение и найдем $y$:")
+                            st.latex(rf"{sp.latex(eq_sub)} = 0 \implies y \in \{{{', '.join(sp.latex(yv) for yv in y_vals)}\}}")
+                            st.markdown("**Шаг 3.** Обратная подстановка найденных $y$ для вычисления $x$:")
+                            x_vals = list(sp.simplify(sx.subs(y, yv)) for yv in y_vals)
+                            st.latex(rf"x = {sp.latex(sx)} \implies x \in \{{{', '.join(sp.latex(xv) for xv in x_vals)}\}}")
+                            rep += f"Шаг 1: x = {sx}\nШаг 2: {eq_sub} = 0 -> y = {y_vals}\nШаг 3: x = {x_vals}\n\n"
                     except Exception: pass
-
-                try: sols = sp.solve(fs, vs, dict=True)
-                except NotImplementedError:
-                    sols = None
-                    st.warning("⚠️ Выберите «Метод Ньютона» для трансцендентных систем.")
+                        
                 if sols is not None:
                     rs = list(s for s in sols if all(abs(complex(s.get(v).evalf()).imag) < 1e-12 for v in vs))
                     sh = rs if only_r else sols
@@ -120,6 +125,7 @@ if mode == "1. Решение системы":
                             st.latex(rf"\text{{{tg} }} {idx}: \quad " + r", \quad ".join(pts))
             else:
                 Js = sp.Matrix(fs).jacobian(vs)
+                st.markdown("**Шаг 1.** Вычисление матрицы Якоби $J(X)$:")
                 st.latex(r"J(X) = " + sp.latex(Js))
                 Fn, Jn = sp.lambdify(vs, fs, 'numpy'), sp.lambdify(vs, Js, 'numpy')
                 xc, hist = np.array(x0, dtype=float), list()
@@ -133,8 +139,10 @@ if mode == "1. Решение системы":
                     hist.append(row)
                     xc = xn
                     if err < eps: break
+                st.markdown("**Шаг 2.** Итерационный процесс $X^{(k+1)} = X^{(k)} - J^{-1}(X^{(k)})F(X^{(k)})$:")
                 df = pd.DataFrame(hist)
                 st.dataframe(df, use_container_width=True)
+                st.markdown("**Шаг 3.** Итоговое приближенное решение:")
                 st.latex(", ".join(list(rf"{v} \approx {float(xc.item(i)):.6f}" for i, v in enumerate(vs))))
                 rep += df.to_string(index=False) + "\n"
                 r_pts.append(tuple(float(xc.item(i)) for i in range(n)))
@@ -159,17 +167,26 @@ else:
             else:
                 x, y, z = vs
                 tm = (x**2+y+z, x+y**2-z, x*y+z**2) if mt=="Квадратичная" else ((x**3+y-z, x-y**3+z, x+y+z**3) if mt=="Кубическая" else (sp.sin(x)+y+z, x+sp.cos(y)-z, x*y+z**2))
-            ltx, pln, f_zeros = list(), list(), list()
-            for f in tm:
+            
+            st.markdown("**Шаг 1.** Выбор базовых нелинейных функций $F_i(X)$:")
+            st.latex(r"F(X) = \begin{pmatrix} " + r" \\ ".join(sp.latex(f) for f in tm) + r" \end{pmatrix}")
+            st.markdown("**Шаг 2.** Подстановка заданных корней и вычисление правых частей $C_i = F_i(X_0)$:")
+            ltx, pln, f_zeros, steps_txt = list(), list(), list(), ""
+            for idx, f in enumerate(tm, 1):
                 c = sp.simplify(f.subs(sd))
+                with sp.evaluate(False): sub_show = f.subs(sd)
+                st.latex(rf"C_{idx} = {sp.latex(sub_show)} = {sp.latex(c)}")
                 ltx.append(f"{sp.latex(f)} = {sp.latex(c)}"); pln.append(f"{f} = {c}")
                 f_zeros.append(f - c)
+                steps_txt += f"Шаг 2.{idx}: {f} -> {sub_show} = {c}\n"
+            
+            st.markdown("**Шаг 3.** Формирование итоговой системы нелинейных уравнений:")
             st.latex(r"\begin{cases} " + r" \\ ".join(ltx) + r" \end{cases}")
             st.code("\n".join(pln), language="text")
             pt_val = tuple(float(sd.get(v).evalf()) for v in vs)
             if n == 2: plot_2d(f_zeros.__getitem__(0), f_zeros.__getitem__(1), x, y, pt_val)
             else: plot_3d((pt_val,))
-            rep_s = "СИНТЕЗ СИСТЕМЫ\n" + "="*30 + "\n" + brace(pln) + "\n"
+            rep_s = "СИНТЕЗ СИСТЕМЫ\n" + "="*30 + "\n" + steps_txt + "\n" + brace(pln) + "\n"
             st.download_button("📥 Скачать систему (.txt)", data=rep_s, file_name="sintez.txt")
         except Exception as e: st.error(f"Ошибка: {e}")
-        
+    
