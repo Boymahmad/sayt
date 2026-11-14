@@ -13,10 +13,10 @@ st.markdown("Веб-сервис реализует **прямую задачу*
 st.sidebar.header("⚙️ Режим работы и параметры")
 app_mode = st.sidebar.radio(
     "Выберите режим:",
-    ["1. Решение системы по уравнениям", "2. Построение системы по корням"]
+    ("1. Решение системы по уравнениям", "2. Построение системы по корням")
 )
 
-num_eqs = st.sidebar.selectbox("Размерность системы (количество переменных):", [2, 3])
+num_eqs = st.sidebar.selectbox("Размерность системы (количество переменных):", (2, 3))
 
 transformations = (standard_transformations + (implicit_multiplication_application,))
 
@@ -42,40 +42,41 @@ def format_readable(expr):
 if app_mode == "1. Решение системы по уравнениям":
     method = st.sidebar.radio(
         "Метод решения:",
-        ["Аналитический метод (Символьный)", "Численный метод Ньютона (Итерационный)"]
+        ("Аналитический метод (Символьный)", "Численный метод Ньютона (Итерационный)")
     )
 
     filter_real = st.sidebar.checkbox("Показывать только действительные (вещественные) корни", value=False)
 
     st.subheader("1. Ввод системы нелинейных уравнений")
-    eq_inputs = []
+    eq_inputs = list()
     cols = st.columns(num_eqs)
 
-    default_2 = ["x^2 + y^2 = 1", "x^2 - y^2 = 2"]
-    default_3 = ["x^2 + y + z = 4", "x + y^2 + z = 4", "x + y + z^2 = 4"]
+    default_2 = ("x^2 + y^2 = 1", "x^2 - y^2 = 2")
+    default_3 = ("x^2 + y + z = 4", "x + y^2 + z = 4", "x + y + z^2 = 4")
 
     for i in range(num_eqs):
-        with cols[i]:
-            def_val = default_2[i] if num_eqs == 2 else default_3[i]
+        with cols.__getitem__(i):
+            def_val = default_2.__getitem__(i) if num_eqs == 2 else default_3.__getitem__(i)
             eq_inputs.append(st.text_input(f"Уравнение {i+1}:", value=def_val))
 
     if method == "Численный метод Ньютона (Итерационный)":
         st.info("Задайте начальное приближение $X^{(0)}$, точность $\\varepsilon$ и максимум итераций:")
         p_cols = st.columns(num_eqs + 2)
-        init_guess = []
-        var_names = ["x", "y", "z"][:num_eqs]
-        for i, v in enumerate(var_names):
-            init_guess.append(p_cols[i].number_input(f"Начальное {v}₀:", value=1.0, step=0.1))
-        eps = p_cols[num_eqs].number_input("Точность (ε):", value=1e-6, format="%.1e")
-        max_iter = p_cols[num_eqs + 1].number_input("Макс. итераций:", value=20, min_value=1, max_value=100)
+        init_guess = list()
+        var_names = ("x", "y", "z")
+        for i in range(num_eqs):
+            v = var_names.__getitem__(i)
+            init_guess.append(p_cols.__getitem__(i).number_input(f"Начальное {v}₀:", value=1.0, step=0.1))
+        eps = p_cols.__getitem__(num_eqs).number_input("Точность (ε):", value=1e-6, format="%.1e")
+        max_iter = p_cols.__getitem__(num_eqs + 1).number_input("Макс. итераций:", value=20, min_value=1, max_value=100)
 
     if st.button("🚀 Решить систему", type="primary"):
         try:
             vars_sym = sp.symbols('x y') if num_eqs == 2 else sp.symbols('x y z')
-            funcs = [parse_equation(eq) for eq in eq_inputs]
+            funcs = list(parse_equation(eq) for eq in eq_inputs)
 
             st.subheader("2. Математическая постановка задачи")
-            latex_lines = r" \\ ".join([sp.latex(f) + " = 0" for f in funcs])
+            latex_lines = r" \\ ".join(list(sp.latex(f) + " = 0" for f in funcs))
             st.latex(r"\begin{cases} " + latex_lines + r" \end{cases}")
 
             report_text = f"ОТЧЕТ О РЕШЕНИИ СИСТЕМЫ НЕЛИНЕЙНЫХ УРАВНЕНИЙ\n{'='*55}\n"
@@ -85,12 +86,15 @@ if app_mode == "1. Решение системы по уравнениям":
                 st.subheader("3. Пошаговое аналитическое решение")
                 if num_eqs == 2:
                     x, y = vars_sym
+                    f_first = funcs.__getitem__(0)
+                    f_second = funcs.__getitem__(1)
                     try:
-                        sub_expr = sp.solve(funcs[0], x)
-                        if sub_expr:
+                        sub_list = sp.solve(f_first, x)
+                        if sub_list:
+                            sub_expr = sub_list.__getitem__(0)
                             st.markdown("**Шаг 1.** Выразим переменную $x$ из первого уравнения:")
-                            st.latex(rf"x = {sp.latex(sub_expr[0])}")
-                            substituted = funcs[1].subs(x, sub_expr[0])
+                            st.latex(rf"x = {sp.latex(sub_expr)}")
+                            substituted = f_second.subs(x, sub_expr)
                             st.markdown("**Шаг 2.** Подставим полученное выражение во второе уравнение:")
                             st.latex(rf"{sp.latex(sp.expand(substituted))} = 0")
                     except Exception:
@@ -104,10 +108,10 @@ if app_mode == "1. Решение системы по уравнениям":
                     st.warning("⚠️ Данная система является трансцендентной и не имеет точного аналитического решения. Выберите «Численный метод Ньютона».")
 
                 if solutions is not None:
-                    real_sols = []
-                    complex_sols = []
+                    real_sols = list()
+                    complex_sols = list()
                     for sol in solutions:
-                        is_real = all(abs(complex(sol[v].evalf()).imag) < 1e-12 for v in vars_sym)
+                        is_real = all(abs(complex(sol.get(v).evalf()).imag) < 1e-12 for v in vars_sym)
                         if is_real:
                             real_sols.append(sol)
                         else:
@@ -124,17 +128,18 @@ if app_mode == "1. Решение системы по уравнениям":
                     else:
                         st.success(f"Всего решений: {len(solutions)} (действительных: {len(real_sols)}, комплексных: {len(complex_sols)})")
                         for idx, sol in enumerate(display_sols, 1):
-                            is_r = all(abs(complex(sol[v].evalf()).imag) < 1e-12 for v in vars_sym)
+                            is_r = all(abs(complex(sol.get(v).evalf()).imag) < 1e-12 for v in vars_sym)
                             tag = "Действительный корень" if is_r else "Комплексный корень"
-                            sol_parts = []
+                            sol_parts = list()
                             for v in vars_sym:
-                                c_val = complex(sol[v].evalf())
+                                val_expr = sol.get(v)
+                                c_val = complex(val_expr.evalf())
                                 dec_str = f"{c_val.real:.4f}" if is_r else f"{c_val.real:.3f} {'+' if c_val.imag>=0 else '-'} {abs(c_val.imag):.3f}i"
-                                sol_parts.append(rf"{sp.latex(v)} = {sp.latex(sol[v])} \approx {dec_str}")
+                                sol_parts.append(rf"{sp.latex(v)} = {sp.latex(val_expr)} \approx {dec_str}")
                             st.latex(rf"\text{{{tag} }} {idx}: \quad " + r", \quad ".join(sol_parts))
                             report_text += f"{tag} {idx}:\n"
                             for v in vars_sym:
-                                report_text += f"   {v} = {format_readable(sol[v])}\n"
+                                report_text += f"   {v} = {format_readable(sol.get(v))}\n"
 
             else:
                 st.subheader("3. Итерационный процесс (Метод Ньютона)")
@@ -146,7 +151,7 @@ if app_mode == "1. Решение системы по уравнениям":
                 J_num = sp.lambdify(vars_sym, J_sym, 'numpy')
 
                 x_curr = np.array(init_guess, dtype=float)
-                history = []
+                history = list()
 
                 for k in range(1, int(max_iter) + 1):
                     f_val = np.array(F_num(*x_curr), dtype=float)
@@ -158,8 +163,8 @@ if app_mode == "1. Решение системы по уравнениям":
 
                     row = {"Итерация (k)": k}
                     for idx, v in enumerate(vars_sym):
-                        row[f"{v}_k"] = round(x_next[idx], 7)
-                    row["Погрешность (ε)"] = f"{error:.2e}"
+                        row.update({f"{v}_k": round(float(x_next.item(idx)), 7)})
+                    row.update({"Погрешность (ε)": f"{error:.2e}"})
                     history.append(row)
 
                     x_curr = x_next
@@ -169,7 +174,7 @@ if app_mode == "1. Решение системы по уравнениям":
                 df_iter = pd.DataFrame(history)
                 st.dataframe(df_iter, use_container_width=True)
 
-                res_str = ", ".join([rf"{v} \approx {x_curr[i]:.6f}" for i, v in enumerate(vars_sym)])
+                res_str = ", ".join(list(rf"{v} \approx {float(x_curr.item(i)):.6f}" for i, v in enumerate(vars_sym)))
                 st.success(f"Сходимость достигнута за {len(history)} итераций!")
                 st.latex(res_str)
                 report_text += f"Метод Ньютона (сходимость за {len(history)} итераций):\n" + df_iter.to_string(index=False) + "\n"
@@ -181,27 +186,15 @@ if app_mode == "1. Решение системы по уравнениям":
                 y_vals = np.linspace(-5, 5, 400)
                 X, Y = np.meshgrid(x_vals, y_vals)
 
-                F1_grid = sp.lambdify((x, y), funcs[0], 'numpy')(X, Y)
-                F2_grid = sp.lambdify((x, y), funcs[1], 'numpy')(X, Y)
+                F1_grid = sp.lambdify((x, y), funcs.__getitem__(0), 'numpy')(X, Y)
+                F2_grid = sp.lambdify((x, y), funcs.__getitem__(1), 'numpy')(X, Y)
 
                 fig, ax = plt.subplots(figsize=(6, 6))
-                ax.contour(X, Y, F1_grid, levels=[0], colors='blue', linewidths=2)
-                ax.contour(X, Y, F2_grid, levels=[0], colors='red', linewidths=2)
+                ax.contour(X, Y, F1_grid, levels=(0,), colors='blue', linewidths=2)
+                ax.contour(X, Y, F2_grid, levels=(0,), colors='red', linewidths=2)
                 ax.axhline(0, color='black', linewidth=0.8)
                 ax.axvline(0, color='black', linewidth=0.8)
                 ax.grid(True, linestyle='--', alpha=0.6)
                 ax.set_xlabel("Ось X")
                 ax.set_ylabel("Ось Y")
-                ax.set_title("Кривые уравнений (синий — 1-е, красный — 2-е)")
-                st.pyplot(fig)
-
-            st.subheader("5. Экспорт результатов")
-            st.download_button(
-                label="📥 Скачать текстовый отчет (.txt)",
-                data=report_text,
-                file_name="otchet_resheniya.txt",
-                mime="text/plain"
-            )
-
-        except np.linalg.LinAlgError:
-    
+                            
