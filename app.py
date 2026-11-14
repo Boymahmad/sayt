@@ -21,6 +21,8 @@ def parse_eq(s):
 
 def fmt_val(expr):
     s = str(expr).replace("sqrt", "√").replace("*I", "i").replace("I", "i")
+    if expr.is_Integer:
+        return s
     try:
         v = complex(expr.evalf())
         if abs(v.imag) < 1e-12:
@@ -29,6 +31,11 @@ def fmt_val(expr):
         return f"{s} (≈ {v.real:.4f} {sgn} {abs(v.imag):.4f}i)"
     except Exception:
         return s
+
+def format_system_brace(eq_list):
+    if len(eq_list) == 2:
+        return f"⎧ {eq_list.__getitem__(0)}\n⎩ {eq_list.__getitem__(1)}"
+    return f"⎧ {eq_list.__getitem__(0)}\n⎨ {eq_list.__getitem__(1)}\n⎩ {eq_list.__getitem__(2)}"
 
 if app_mode == "1. Решение системы по уравнениям":
     method = st.sidebar.radio("Метод:", ("Аналитический (Символьный)", "Численный метод Ньютона"))
@@ -53,10 +60,13 @@ if app_mode == "1. Решение системы по уравнениям":
 
             st.subheader("2. Математическая запись")
             st.latex(r"\begin{cases} " + r" \\ ".join(list(sp.latex(f) + " = 0" for f in funcs)) + r" \end{cases}")
-            rep = "ОТЧЕТ О РЕШЕНИИ СИСТЕМЫ\n" + "="*40 + "\n" + "\n".join(eqs_in) + "\n\n"
+            
+            rep = "ОТЧЕТ О РЕШЕНИИ СИСТЕМЫ НЕЛИНЕЙНЫХ МОДЕЛЕЙ\n" + "="*50 + "\n"
+            rep += "Исходная система уравнений:\n" + format_system_brace(eqs_in) + "\n\n"
 
             if method == "Аналитический (Символьный)":
                 st.subheader("3. Аналитическое решение")
+                rep += "Метод решения: Аналитический (символьный)\n" + "-"*50 + "\n"
                 try:
                     sols = sp.solve(funcs, vars_s, dict=True)
                 except NotImplementedError:
@@ -68,7 +78,7 @@ if app_mode == "1. Решение системы по уравнениям":
                     show_s = real_s if only_real else sols
                     if not show_s:
                         st.warning("Действительных решений не найдено.")
-                        rep += "Действительных решений нет.\n"
+                        rep += "Результат: Действительных решений нет.\n"
                     else:
                         st.success(f"Найдено решений: {len(show_s)}")
                         for idx, s in enumerate(show_s, 1):
@@ -78,13 +88,17 @@ if app_mode == "1. Решение системы по уравнениям":
                             rep += f"{tag} {idx}:\n"
                             for v in vars_s:
                                 ex = s.get(v)
-                                cv = complex(ex.evalf())
-                                dec = f"{cv.real:.4f}" if is_r else f"{cv.real:.3f}{'+' if cv.imag>=0 else '-'}{abs(cv.imag):.3f}i"
-                                parts.append(rf"{sp.latex(v)} = {sp.latex(ex)} \approx {dec}")
-                                rep += f"  {v} = {fmt_val(ex)}\n"
+                                if ex.is_Integer:
+                                    parts.append(rf"{sp.latex(v)} = {sp.latex(ex)}")
+                                else:
+                                    cv = complex(ex.evalf())
+                                    dec = f"{cv.real:.4f}" if is_r else f"{cv.real:.3f}{'+' if cv.imag>=0 else '-'}{abs(cv.imag):.3f}i"
+                                    parts.append(rf"{sp.latex(v)} = {sp.latex(ex)} \approx {dec}")
+                                rep += f"   {v} = {fmt_val(ex)}\n"
                             st.latex(rf"\text{{{tag} }} {idx}: \quad " + r", \quad ".join(parts))
             else:
                 st.subheader("3. Метод Ньютона")
+                rep += "Метод решения: Численный метод Ньютона\n" + "-"*50 + "\n"
                 J_s = sp.Matrix(funcs).jacobian(vars_s)
                 st.latex(r"J(X) = " + sp.latex(J_s))
                 F_n = sp.lambdify(vars_s, funcs, 'numpy')
@@ -106,7 +120,8 @@ if app_mode == "1. Решение системы по уравнениям":
                 df = pd.DataFrame(hist)
                 st.dataframe(df, use_container_width=True)
                 st.latex(", ".join(list(rf"{v} \approx {float(xc.item(i)):.6f}" for i, v in enumerate(vars_s))))
-                rep += df.to_string(index=False) + "\n"
+                rep += "Таблица итераций:\n" + df.to_string(index=False) + "\n\n"
+                rep += "Итоговый приближенный корень:\n" + ", ".join(list(f"{v} ≈ {float(xc.item(i)):.6f}" for i, v in enumerate(vars_s))) + "\n"
 
             if num_eqs == 2:
                 st.subheader("4. График системы")
@@ -121,7 +136,7 @@ if app_mode == "1. Решение системы по уравнениям":
                 ax.grid(True, ls='--', alpha=0.6)
                 st.pyplot(fig)
 
-            st.download_button("📥 Скачать отчет (.txt)", data=rep, file_name="otchet.txt")
+            st.download_button("📥 Скачать отчет (.txt)", data=rep, file_name="otchet_resheniya.txt")
         except Exception as e:
             st.error(f"Ошибка: {e}")
 
@@ -154,6 +169,11 @@ else:
             st.latex(r"\begin{cases} " + r" \\ ".join(ltx) + r" \end{cases}")
             st.code("\n".join(pln), language="text")
 
+            rep_syn = "ОТЧЕТ О СИНТЕЗЕ СИСТЕМЫ НЕЛИНЕЙНЫХ УРАВНЕНИЙ\n" + "="*50 + "\n"
+            rep_syn += "Заданные корни: " + ", ".join(list(f"{v} = {subs_d.get(v)}" for v in vars_s)) + "\n\n"
+            rep_syn += "Построенная система уравнений:\n" + format_system_brace(pln) + "\n"
+            st.download_button("📥 Скачать систему (.txt)", data=rep_syn, file_name="sintez_sistemy.txt")
+
             if num_eqs == 2:
                 x, y = vars_s
                 x0f, y0f = float(subs_d.get(x).evalf()), float(subs_d.get(y).evalf())
@@ -162,12 +182,4 @@ else:
                 X, Y = np.meshgrid(xv, xv)
                 fig, ax = plt.subplots(figsize=(5, 5))
                 ax.contour(X, Y, sp.lambdify((x, y), tmpls.__getitem__(0) - float(tmpls.__getitem__(0).subs(subs_d).evalf()), 'numpy')(X, Y), levels=(0,), colors='blue')
-                ax.contour(X, Y, sp.lambdify((x, y), tmpls.__getitem__(1) - float(tmpls.__getitem__(1).subs(subs_d).evalf()), 'numpy')(X, Y), levels=(0,), colors='red')
-                ax.scatter((x0f,), (y0f,), color='green', s=80, zorder=5, label=f"Корень ({x0f:.2f}, {y0f:.2f})")
-                ax.axhline(0, color='black', lw=0.8)
-                ax.axvline(0, color='black', lw=0.8)
-                ax.grid(True, ls='--', alpha=0.6)
-                ax.legend()
-                st.pyplot(fig)
-        except Exception as e:
-            st.error(f"Ошибка: {e}")
+                    
